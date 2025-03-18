@@ -1,7 +1,7 @@
 <?php
 
-// For products quantity and price and size ((Hossam Custom))
-// Add custom fields after product tags in Dokan
+// For products quantity and price and size ((Hossam Hamdy Custom))
+// =============================================================
 add_action('dokan_new_product_after_product_tags', 'add_custom_quantity_field', 10);
 add_action('dokan_product_edit_after_product_tags', 'add_custom_quantity_field', 10, 2);
 
@@ -124,6 +124,7 @@ function save_custom_variation_data($product_id, $data)
     update_post_meta($product_id, '_prices', $prices_to_save);
     update_post_meta($product_id, '_quantities', $quantities_to_save);
 
+    // Set up attributes
     // إعداد السمات
     $attributes = [
         'size' => [
@@ -137,6 +138,7 @@ function save_custom_variation_data($product_id, $data)
     ];
     update_post_meta($product_id, '_product_attributes', $attributes);
 
+    // Update variations
     // تحديث المتغيرات
     $existing_variations = $product->get_children();
     $variation_ids = [];
@@ -144,6 +146,7 @@ function save_custom_variation_data($product_id, $data)
     foreach ($valid_variations as $variation_data) {
         $variation_id = null;
 
+        // Search for existing variation
         // البحث عن متغير موجود
         foreach ($existing_variations as $var_id) {
             $variation = wc_get_product($var_id);
@@ -153,12 +156,13 @@ function save_custom_variation_data($product_id, $data)
             }
         }
 
+        // Create or update variation
         // إنشاء أو تحديث المتغير
         $variation = $variation_id ? wc_get_product($variation_id) : new WC_Product_Variation();
         $variation->set_parent_id($product_id);
         $variation->set_attributes(['size' => $variation_data['size']]);
         $variation->set_regular_price($variation_data['price']);
-        $variation->set_sale_price(''); // إعادة تعيين سعر التخفيض إذا كان موجودًا
+        $variation->set_sale_price(''); // Reset sale price if it exists // إعادة تعيين سعر التخفيض إذا كان موجودًا
         $variation->set_stock_quantity($variation_data['quantity']);
         $variation->set_manage_stock(true);
         $variation->set_stock_status($variation_data['quantity'] > 0 ? 'instock' : 'outofstock');
@@ -168,6 +172,7 @@ function save_custom_variation_data($product_id, $data)
         $variation_ids[] = $variation_id;
     }
 
+    // Delete unused variations
     // حذف المتغيرات غير المستخدمة
     foreach ($existing_variations as $var_id) {
         if (!in_array($var_id, $variation_ids)) {
@@ -178,19 +183,23 @@ function save_custom_variation_data($product_id, $data)
         }
     }
 
+    // Update main product
     // تحديث المنتج الرئيسي
     $product->set_stock_status('instock');
     $product->save();
 
+    // Clear cache to ensure data is updated
     // مسح ذاكرة التخزين المؤقت لضمان تحديث البيانات
     wc_delete_product_transients($product_id);
 }
 
+// Ensure variations are purchasable based on quantity and price
 // التأكد من أن المتغيرات قابلة للشراء بناءً على الكمية والسعر
 add_filter('woocommerce_variation_is_purchasable', function ($purchasable, $variation) {
     return $variation->get_stock_quantity() > 0 && $variation->get_regular_price() > 0;
 }, 10, 2);
 
+// Update stock status on the frontend
 // تحديث حالة المخزون في الواجهة الأمامية
 add_filter('woocommerce_available_variation', 'custom_update_variation_data', 10, 3);
 function custom_update_variation_data($data, $product, $variation)
