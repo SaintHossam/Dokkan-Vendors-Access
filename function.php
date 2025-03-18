@@ -1,105 +1,103 @@
 <?php
-
+// For products quantity and price and size ((Hossam Custom))
+// Add custom fields after product tags in Dokan
 add_action('dokan_new_product_after_product_tags', 'add_custom_quantity_field', 10);
 add_action('dokan_product_edit_after_product_tags', 'add_custom_quantity_field', 10, 2);
 
-function add_custom_quantity_field($post = null, $post_id = 0)
-{
+function add_custom_quantity_field($post = null, $post_id = 0) {
     $product = $post_id ? wc_get_product($post_id) : null;
-?>
-    <?php if (!$product || $product->is_type('variable')): ?>
-        <div class="dokan-form-group variations-wrapper">
-            <label class="dokan-control-label"><?php _e('الحجم والسعر والكمية للمتغيرات', 'dokan'); ?></label>
-            <div class="variations-container">
-                <?php
-                $sizes = $post_id ? get_post_meta($post_id, '_sizes', true) : [];
-                $prices = $post_id ? get_post_meta($post_id, '_prices', true) : [];
-                $quantities = $post_id ? get_post_meta($post_id, '_quantities', true) : [];
+    $is_edit = $post_id > 0; // Check if this is an edit page
+    ?>
+    <div class="dokan-form-group variations-wrapper" style="<?php echo $is_edit && (!$product || !$product->is_type('variable')) ? 'display:none;' : ''; ?>">
+        <label class="dokan-control-label"><?php _e('الحجم والسعر والكمية للمتغيرات', 'dokan'); ?></label>
+        <div class="variations-container">
+            <?php
+            $sizes = $post_id ? get_post_meta($post_id, '_sizes', true) : [];
+            $prices = $post_id ? get_post_meta($post_id, '_prices', true) : [];
+            $quantities = $post_id ? get_post_meta($post_id, '_quantities', true) : [];
 
-                $sizes = !empty($sizes) && is_array($sizes) ? $sizes : [];
-                $prices = !empty($prices) && is_array($prices) ? $prices : [];
-                $quantities = !empty($quantities) && is_array($quantities) ? $quantities : [];
+            $sizes = !empty($sizes) && is_array($sizes) ? $sizes : [];
+            $prices = !empty($prices) && is_array($prices) ? $prices : [];
+            $quantities = !empty($quantities) && is_array($quantities) ? $quantities : [];
 
-                $count = !empty($sizes) ? count($sizes) : 1;
-                for ($i = 0; $i < $count; $i++) {
-                    $size = isset($sizes[$i]) ? esc_attr($sizes[$i]) : '';
-                    $price = isset($prices[$i]) ? esc_attr($prices[$i]) : '';
-                    $quantity = isset($quantities[$i]) ? esc_attr($quantities[$i]) : '';
+            $count = !empty($sizes) ? count($sizes) : 1;
+            for ($i = 0; $i < $count; $i++) {
+                $size = isset($sizes[$i]) ? esc_attr($sizes[$i]) : '';
+                $price = isset($prices[$i]) ? esc_attr($prices[$i]) : '';
+                $quantity = isset($quantities[$i]) ? esc_attr($quantities[$i]) : '';
                 ?>
-                    <div class="variations-row dokan-clearfix">
-                        <div class="dokan-w4">
-                            <input type="text" name="sizes[]" class="dokan-form-control" value="<?php echo $size; ?>" placeholder="الحجم">
-                        </div>
-                        <div class="dokan-w4">
-                            <input type="number" step="0.01" min="0" name="prices[]" class="dokan-form-control" value="<?php echo $price ?: ''; ?>" placeholder="السعر">
-                        </div>
-                        <div class="dokan-w3">
-                            <input type="number" min="0" step="1" name="quantities[]" class="dokan-form-control" value="<?php echo $quantity ?: ''; ?>" placeholder="الكمية">
-                        </div>
-                        <div class="dokan-w1">
-                            <?php if ($i === 0): ?>
-                                <button type="button" class="clear-variation-row dokan-btn dokan-btn-warning"><?php _e('تفريغ', 'dokan'); ?></button>
-                            <?php elseif ($i > 0): ?>
-                                <button type="button" class="remove-variation-row dokan-btn dokan-btn-danger"><?php _e('حذف', 'dokan'); ?></button>
-                            <?php endif; ?>
-                        </div>
+                <div class="variations-row dokan-clearfix">
+                    <div class="dokan-w4">
+                        <input type="text" name="sizes[]" class="dokan-form-control" value="<?php echo $size; ?>" placeholder="الحجم">
                     </div>
+                    <div class="dokan-w4">
+                        <input type="number" step="0.01" min="0" name="prices[]" class="dokan-form-control" value="<?php echo $price ?: ''; ?>" placeholder="السعر">
+                    </div>
+                    <div class="dokan-w3">
+                        <input type="number" min="0" step="1" name="quantities[]" class="dokan-form-control" value="<?php echo $quantity ?: ''; ?>" placeholder="الكمية">
+                    </div>
+                    <div class="dokan-w1">
+                        <?php if ($i === 0): ?>
+                            <button type="button" class="clear-variation-row dokan-btn dokan-btn-warning"><?php _e('تفريغ', 'dokan'); ?></button>
+                        <?php elseif ($i > 0): ?>
+                            <button type="button" class="remove-variation-row dokan-btn dokan-btn-danger"><?php _e('حذف', 'dokan'); ?></button>
+                        <?php endif; ?>
+                    </div>
+                </div>
                 <?php
-                }
-                ?>
-            </div>
-            <button type="button" class="add-variation-row dokan-btn dokan-btn-theme"><?php _e('إضافة متغير جديد', 'dokan'); ?></button>
+            }
+            ?>
         </div>
+        <button type="button" class="add-variation-row dokan-btn dokan-btn-theme"><?php _e('إضافة متغير جديد', 'dokan'); ?></button>
+    </div>
 
-        <script>
-            jQuery(document).ready(function($) {
-                function toggleVariations() {
-                    $('.variations-wrapper').toggle($('#product_type').val() === 'variable');
-                }
+    <script>
+        jQuery(document).ready(function($) {
+            function toggleVariations() {
+                $('.variations-wrapper').toggle($('#product_type').val() === 'variable');
+            }
 
-                $('#product_type').on('change', toggleVariations);
-                toggleVariations();
+            $('#product_type').on('change', toggleVariations);
+            toggleVariations();
 
-                $('.add-variation-row').on('click', function() {
-                    var newRow = '<div class="variations-row dokan-clearfix">' +
-                        '<div class="dokan-w4"><input type="text" name="sizes[]" class="dokan-form-control" placeholder="الحجم"></div>' +
-                        '<div class="dokan-w4"><input type="number" step="0.01" min="0" name="prices[]" class="dokan-form-control" placeholder="السعر"></div>' +
-                        '<div class="dokan-w3"><input type="number" min="0" step="1" name="quantities[]" class="dokan-form-control" placeholder="الكمية"></div>' +
-                        '<div class="dokan-w1"><button type="button" class="remove-variation-row dokan-btn dokan-btn-danger">حذف</button></div>' +
-                        '</div>';
-                    $('.variations-container').append(newRow);
-                });
-
-                $(document).on('click', '.remove-variation-row', function() {
-                    $(this).closest('.variations-row').remove();
-                });
-
-                $(document).on('click', '.clear-variation-row', function() {
-                    var $row = $(this).closest('.variations-row');
-                    $row.find('input[name="sizes[]"]').val('');
-                    $row.find('input[name="prices[]"]').val('');
-                    $row.find('input[name="quantities[]"]').val('');
-                });
-
-                $(document).on('input', 'input[name="quantities[]"], input[name="prices[]"]', function() {
-                    if (!this.value) {
-                        this.value = '';
-                    } else if (this.name === 'quantities[]') {
-                        this.value = Math.max(0, Math.floor(this.value));
-                    }
-                });
+            $('.add-variation-row').on('click', function() {
+                var newRow = '<div class="variations-row dokan-clearfix">' +
+                    '<div class="dokan-w4"><input type="text" name="sizes[]" class="dokan-form-control" placeholder="الحجم"></div>' +
+                    '<div class="dokan-w4"><input type="number" step="0.01" min="0" name="prices[]" class="dokan-form-control" placeholder="السعر"></div>' +
+                    '<div class="dokan-w3"><input type="number" min="0" step="1" name="quantities[]" class="dokan-form-control" placeholder="الكمية"></div>' +
+                    '<div class="dokan-w1"><button type="button" class="remove-variation-row dokan-btn dokan-btn-danger">حذف</button></div>' +
+                    '</div>';
+                $('.variations-container').append(newRow);
             });
-        </script>
-    <?php endif; ?>
-<?php
+
+            $(document).on('click', '.remove-variation-row', function() {
+                $(this).closest('.variations-row').remove();
+            });
+
+            $(document).on('click', '.clear-variation-row', function() {
+                var $row = $(this).closest('.variations-row');
+                $row.find('input[name="sizes[]"]').val('');
+                $row.find('input[name="prices[]"]').val('');
+                $row.find('input[name="quantities[]"]').val('');
+            });
+
+            $(document).on('input', 'input[name="quantities[]"], input[name="prices[]"]', function() {
+                if (!this.value) {
+                    this.value = '';
+                } else if (this.name === 'quantities[]') {
+                    this.value = Math.max(0, Math.floor(this.value));
+                }
+            });
+        });
+    </script>
+    <?php
 }
 
-// Since fields aren't required anymore, update the save function to handle empty values better
+// Save custom variation data
 add_action('dokan_new_product_added', 'save_custom_variation_data', 10, 2);
 add_action('dokan_product_updated', 'save_custom_variation_data', 10, 2);
 
-function save_custom_variation_data($product_id, $data)
-{
+function save_custom_variation_data($product_id, $data) {
     if (!isset($_POST['sizes']) || !isset($_POST['prices']) || !isset($_POST['quantities'])) {
         return;
     }
@@ -115,7 +113,6 @@ function save_custom_variation_data($product_id, $data)
 
     $valid_variations = [];
     foreach ($sizes as $index => $size) {
-        // Only save if at least size is provided, price and quantity can be empty
         if (!empty($size)) {
             $valid_variations[] = [
                 'size' => $size,
@@ -140,7 +137,7 @@ function save_custom_variation_data($product_id, $data)
     $attributes = [
         'size' => [
             'name' => 'size',
-            'value' => implode('|', $sizes_to_save),
+            'value' => implode('|', array_map('strtolower', $sizes_to_save)), // Lowercase for consistency
             'position' => 0,
             'is_visible' => 1,
             'is_variation' => 1,
@@ -165,7 +162,7 @@ function save_custom_variation_data($product_id, $data)
 
         $variation = $variation_id ? wc_get_product($variation_id) : new WC_Product_Variation();
         $variation->set_parent_id($product_id);
-        $variation->set_attributes(['size' => $variation_data['size']]);
+        $variation->set_attributes(['size' => strtolower($variation_data['size'])]); // Lowercase for consistency
         $variation->set_regular_price($variation_data['price'] > 0 ? $variation_data['price'] : '');
         $variation->set_sale_price('');
         $variation->set_stock_quantity($variation_data['quantity']);
@@ -175,6 +172,9 @@ function save_custom_variation_data($product_id, $data)
 
         $variation_id = $variation->save();
         $variation_ids[] = $variation_id;
+
+        // Debugging
+        error_log("Variation Saved - ID: $variation_id, Size: " . $variation_data['size'] . ", Price: " . $variation->get_regular_price() . ", Stock: " . $variation->get_stock_quantity());
     }
 
     foreach ($existing_variations as $var_id) {
@@ -191,22 +191,31 @@ function save_custom_variation_data($product_id, $data)
     wc_delete_product_transients($product_id);
 }
 
+// Adjust purchasability logic
 add_filter('woocommerce_variation_is_purchasable', function ($purchasable, $variation) {
-    return $variation->get_stock_quantity() > 0 && $variation->get_regular_price() > 0;
+    $price = $variation->get_regular_price();
+    $stock = $variation->get_stock_quantity();
+    $purchasable = !empty($price) && $price > 0; // Allow if price is set, even if stock is 0
+    error_log("Variation Purchasable Check - ID: " . $variation->get_id() . ", Price: $price, Stock: $stock, Purchasable: " . ($purchasable ? 'Yes' : 'No'));
+    return $purchasable;
 }, 10, 2);
 
+// Update variation data for frontend
 add_filter('woocommerce_available_variation', 'custom_update_variation_data', 10, 3);
-function custom_update_variation_data($data, $product, $variation)
-{
+function custom_update_variation_data($data, $product, $variation) {
     $stock_quantity = $variation->get_stock_quantity();
     $data['availability_html'] = $stock_quantity > 0 ? 
         wc_get_stock_html($variation) : 
         '<p class="stock out-of-stock">' . __('هذا المنتج غير متوفر في المخزون حالياً.', 'woocommerce') . '</p>';
     $data['is_in_stock'] = $stock_quantity > 0;
     $data['max_qty'] = $stock_quantity > 0 ? $stock_quantity : 0;
+
+    // Debugging
+    error_log("Variation Data - ID: " . $variation->get_id() . ", Size: " . $variation->get_attribute('size') . ", Stock: $stock_quantity, Price: " . $variation->get_regular_price());
     return $data;
 }
 
+// Custom price HTML for variable products
 add_filter('woocommerce_variable_sale_price_html', 'custom_variable_price_html', 10, 2);
 add_filter('woocommerce_variable_price_html', 'custom_variable_price_html', 10, 2);
 function custom_variable_price_html($price, $product) {
