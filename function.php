@@ -1,46 +1,79 @@
 <?php
-// For products quantity and price and size ((Hossam Custom))
-// Add custom fields after product tags in Dokan
-add_action('dokan_new_product_after_product_tags', 'add_custom_quantity_field', 10);
-add_action('dokan_product_edit_after_product_tags', 'add_custom_quantity_field', 10, 2);
+add_action('dokan_new_product_after_product_tags', 'add_custom_quantity_field', 99999);
+add_action('dokan_product_edit_after_product_tags', 'add_custom_quantity_field', 99999, 2);
 
 function add_custom_quantity_field($post = null, $post_id = 0) {
     $product = $post_id ? wc_get_product($post_id) : null;
-    $is_edit = $post_id > 0; // Check if this is an edit page
+    $is_edit = $post_id > 0;
+
+    $base_price = $post_id ? floatval(get_post_meta($post_id, '_custom_base_price', true)) : '';
+    $base_quantity = $post_id ? intval(get_post_meta($post_id, '_custom_base_quantity', true)) : '';
+
     ?>
     <div class="dokan-form-group variations-wrapper" style="<?php echo $is_edit && (!$product || !$product->is_type('variable')) ? 'display:none;' : ''; ?>">
         <label class="dokan-control-label"><?php _e('الحجم والسعر والكمية للمتغيرات', 'dokan'); ?></label>
         <div class="variations-container">
+            <!-- Base Product Price Field -->
+            <div class="variations-row dokan-clearfix">
+                <div class="dokan-w4">
+                    <input type="text" class="dokan-form-control" value="<?php _e('سعر المنتج', 'dokan'); ?>" disabled>
+                </div>
+                <div class="dokan-w4">
+                    <input type="number" step="0.01" min="0" name="custom_base_price" class="dokan-form-control" value="<?php echo esc_attr($base_price); ?>" placeholder="السعر" required>
+                </div>
+                <div class="dokan-w3">
+                    <input type="number" min="0" step="1" name="custom_base_quantity" class="dokan-form-control" value="<?php echo esc_attr($base_quantity); ?>" placeholder="الكمية" required>
+                </div>
+                <div class="dokan-w1">
+                    <button type="button" class="clear-base-price dokan-btn dokan-btn-warning"><?php _e('تفريغ', 'dokan'); ?></button>
+                </div>
+            </div>
+
             <?php
+            // Retrieve variation data
             $sizes = $post_id ? get_post_meta($post_id, '_sizes', true) : [];
             $prices = $post_id ? get_post_meta($post_id, '_prices', true) : [];
             $quantities = $post_id ? get_post_meta($post_id, '_quantities', true) : [];
 
-            $sizes = !empty($sizes) && is_array($sizes) ? $sizes : [];
-            $prices = !empty($prices) && is_array($prices) ? $prices : [];
-            $quantities = !empty($quantities) && is_array($quantities) ? $quantities : [];
+            $sizes = is_array($sizes) ? $sizes : [];
+            $prices = is_array($prices) ? $prices : [];
+            $quantities = is_array($quantities) ? $quantities : [];
 
-            $count = !empty($sizes) ? count($sizes) : 1;
-            for ($i = 0; $i < $count; $i++) {
-                $size = isset($sizes[$i]) ? esc_attr($sizes[$i]) : '';
-                $price = isset($prices[$i]) ? esc_attr($prices[$i]) : '';
-                $quantity = isset($quantities[$i]) ? esc_attr($quantities[$i]) : '';
-                ?>
-                <div class="variations-row dokan-clearfix">
-                    <div class="dokan-w4">
-                        <input type="text" name="sizes[]" class="dokan-form-control" value="<?php echo $size; ?>" placeholder="الحجم">
+            // Filter variations to exclude base price
+            $filtered_variations = [];
+            foreach ($sizes as $index => $size) {
+                if (!empty($size) && strtolower($size) !== 'سعر المنتج') {
+                    $filtered_variations[] = [
+                        'size' => $size,
+                        'price' => isset($prices[$index]) ? floatval($prices[$index]) : '',
+                        'quantity' => isset($quantities[$index]) ? intval($quantities[$index]) : ''
+                    ];
+                }
+            }
+
+            // Only render variation rows if there are actual variations
+            if (!empty($filtered_variations)) {
+                foreach ($filtered_variations as $variation) {
+                    $size = esc_attr($variation['size']);
+                    $price = esc_attr($variation['price']);
+                    $quantity = esc_attr($variation['quantity']);
+                    ?>
+                    <div class="variations-row dokan-clearfix">
+                        <div class="dokan-w4">
+                            <input type="text" name="sizes[]" class="dokan-form-control" value="<?php echo $size; ?>" placeholder="الحجم" required>
+                        </div>
+                        <div class="dokan-w4">
+                            <input type="number" step="0.01" min="0" name="prices[]" class="dokan-form-control" value="<?php echo $price; ?>" placeholder="السعر" required>
+                        </div>
+                        <div class="dokan-w3">
+                            <input type="number" min="0" step="1" name="quantities[]" class="dokan-form-control" value="<?php echo $quantity; ?>" placeholder="الكمية" required>
+                        </div>
+                        <div class="dokan-w1">
+                            <button type="button" class="remove-variation-row dokan-btn dokan-btn-danger"><?php _e('حذف', 'dokan'); ?></button>
+                        </div>
                     </div>
-                    <div class="dokan-w4">
-                        <input type="number" step="0.01" min="0" name="prices[]" class="dokan-form-control" value="<?php echo $price ?: ''; ?>" placeholder="السعر">
-                    </div>
-                    <div class="dokan-w3">
-                        <input type="number" min="0" step="1" name="quantities[]" class="dokan-form-control" value="<?php echo $quantity ?: ''; ?>" placeholder="الكمية">
-                    </div>
-                    <div class="dokan-w1">
-                        <button type="button" class="remove-variation-row dokan-btn dokan-btn-danger"><?php _e('حذف', 'dokan'); ?></button>
-                    </div>
-                </div>
-                <?php
+                    <?php
+                }
             }
             ?>
         </div>
@@ -57,10 +90,12 @@ function add_custom_quantity_field($post = null, $post_id = 0) {
             toggleVariations();
 
             $('.add-variation-row').on('click', function() {
+                $('.no-variations-message').remove();
+
                 var newRow = '<div class="variations-row dokan-clearfix">' +
-                    '<div class="dokan-w4"><input type="text" name="sizes[]" class="dokan-form-control" placeholder="الحجم"></div>' +
-                    '<div class="dokan-w4"><input type="number" step="0.01" min="0" name="prices[]" class="dokan-form-control" placeholder="السعر"></div>' +
-                    '<div class="dokan-w3"><input type="number" min="0" step="1" name="quantities[]" class="dokan-form-control" placeholder="الكمية"></div>' +
+                    '<div class="dokan-w4"><input type="text" name="sizes[]" class="dokan-form-control" placeholder="الحجم" required></div>' +
+                    '<div class="dokan-w4"><input type="number" step="0.01" min="0" name="prices[]" class="dokan-form-control" placeholder="السعر" required></div>' +
+                    '<div class="dokan-w3"><input type="number" min="0" step="1" name="quantities[]" class="dokan-form-control" placeholder="الكمية" required></div>' +
                     '<div class="dokan-w1"><button type="button" class="remove-variation-row dokan-btn dokan-btn-danger"><?php _e('حذف', 'dokan'); ?></button></div>' +
                     '</div>';
                 $('.variations-container').append(newRow);
@@ -69,13 +104,63 @@ function add_custom_quantity_field($post = null, $post_id = 0) {
             $(document).on('click', '.remove-variation-row', function(e) {
                 e.preventDefault();
                 $(this).closest('.variations-row').remove();
+
+                if ($('.variations-row').length === 1) {
+                    $('.variations-container').append('<p class="no-variations-message"><?php _e('لا توجد متغيرات حالياً. يمكنك إضافة متغير جديد باستخدام الزر أدناه.', 'dokan'); ?></p>');
+                }
             });
 
-            $(document).on('input', 'input[name="quantities[]"], input[name="prices[]"]', function() {
+            $(document).on('click', '.clear-base-price', function(e) {
+                e.preventDefault();
+                $(this).closest('.variations-row').find('input[name="custom_base_price"]').val('');
+                $(this).closest('.variations-row').find('input[name="custom_base_quantity"]').val('');
+            });
+
+            $(document).on('input', 'input[name="quantities[]"], input[name="custom_base_quantity"]', function() {
                 if (!this.value) {
                     this.value = '';
-                } else if (this.name === 'quantities[]') {
+                } else {
                     this.value = Math.max(0, Math.floor(this.value));
+                }
+            });
+
+            $(document).on('input', 'input[name="prices[]"], input[name="custom_base_price"]', function() {
+                if (!this.value) {
+                    this.value = '';
+                }
+            });
+
+            $('#dokan-product-form, #dokan-edit-product-form').on('submit', function(e) {
+                var basePrice = $('input[name="custom_base_price"]').val();
+                var baseQuantity = $('input[name="custom_base_quantity"]').val();
+                var hasInvalidVariation = false;
+
+                $('.variations-row:not(:first)').each(function() {
+                    var size = $(this).find('input[name="sizes[]"]').val();
+                    var price = $(this).find('input[name="prices[]"]').val();
+                    var quantity = $(this).find('input[name="quantities[]"]').val();
+
+                    if (size && (!price || parseFloat(price) <= 0 || !quantity || parseInt(quantity) < 0)) {
+                        hasInvalidVariation = true;
+                    }
+                });
+
+                if (!basePrice || parseFloat(basePrice) <= 0) {
+                    alert('يرجى إدخال سعر المنتج، يجب أن يكون أكبر من 0.');
+                    e.preventDefault();
+                    return false;
+                }
+
+                if (!baseQuantity || parseInt(baseQuantity) < 0) {
+                    alert('يرجى إدخال كمية المنتج، يجب أن تكون 0 أو أكبر.');
+                    e.preventDefault();
+                    return false;
+                }
+
+                if (hasInvalidVariation) {
+                    alert('يرجى التأكد من إدخال بيانات صحيحة لكل المتغيرات (الحجم، السعر، الكمية).');
+                    e.preventDefault();
+                    return false;
                 }
             });
         });
@@ -83,65 +168,65 @@ function add_custom_quantity_field($post = null, $post_id = 0) {
     <?php
 }
 
-// Save custom variation data
-add_action('dokan_new_product_added', 'save_custom_variation_data', 10, 2);
-add_action('dokan_product_updated', 'save_custom_variation_data', 10, 2);
+add_action('dokan_new_product_added', 'save_custom_variation_data', 99999, 2);
+add_action('dokan_product_updated', 'save_custom_variation_data', 99999, 2);
 
 function save_custom_variation_data($product_id, $data) {
     $product = wc_get_product($product_id);
-    if (!$product || !$product->is_type('variable')) {
-        return;
+    if (!$product) {
+        wc_add_notice(__('خطأ: المنتج غير موجود.', 'dokan'), 'error');
+        wp_redirect(wp_get_referer());
+        exit;
     }
 
-    // تسجيل البيانات الواردة للتحقق
-    error_log("POST Data for Product ID $product_id: " . print_r($_POST, true));
+    if (!$product->is_type('variable')) {
+        wp_set_object_terms($product_id, 'variable', 'product_type');
+        $product = wc_get_product($product_id);
+    }
 
-    // التحقق مما إذا كانت الحقول موجودة وغير فارغة
+    $custom_base_price = isset($_POST['custom_base_price']) ? floatval($_POST['custom_base_price']) : 0;
+    $custom_base_quantity = isset($_POST['custom_base_quantity']) ? intval($_POST['custom_base_quantity']) : 0;
+
+    if ($custom_base_price <= 0) {
+        wc_add_notice(__('سعر المنتج مطلوب ويجب أن يكون أكبر من 0.', 'dokan'), 'error');
+        wp_redirect(wp_get_referer());
+        exit;
+    }
+
+    if ($custom_base_quantity < 0) {
+        wc_add_notice(__('كمية المنتج مطلوبة ويجب أن تكون 0 أو أكبر.', 'dokan'), 'error');
+        wp_redirect(wp_get_referer());
+        exit;
+    }
+
+    update_post_meta($product_id, '_custom_base_price', $custom_base_price);
+    update_post_meta($product_id, '_custom_base_quantity', $custom_base_quantity);
+
     $sizes = isset($_POST['sizes']) && is_array($_POST['sizes']) ? array_map('sanitize_text_field', $_POST['sizes']) : [];
     $prices = isset($_POST['prices']) && is_array($_POST['prices']) ? array_map('floatval', $_POST['prices']) : [];
     $quantities = isset($_POST['quantities']) && is_array($_POST['quantities']) ? array_map('intval', $_POST['quantities']) : [];
 
     $valid_variations = [];
     foreach ($sizes as $index => $size) {
-        if (!empty($size)) {
-            $valid_variations[] = [
-                'size' => $size,
-                'price' => isset($prices[$index]) ? $prices[$index] : 0,
-                'quantity' => isset($quantities[$index]) ? $quantities[$index] : 0
-            ];
-        }
-    }
-
-    // إذا لم يتم إرسال أي بيانات أو كانت جميع الحقول فارغة، قم بحذف كل شيء
-    if (empty($sizes) || empty($valid_variations)) {
-        // حذف جميع المتغيرات الموجودة
-        $existing_variations = $product->get_children();
-        foreach ($existing_variations as $var_id) {
-            $variation = wc_get_product($var_id);
-            if ($variation) {
-                $variation->delete(true);
-                error_log("Deleted variation ID: $var_id for product ID: $product_id");
+        if (!empty($size) && strtolower($size) !== 'سعر المنتج') {
+            $price = isset($prices[$index]) ? floatval($prices[$index]) : 0;
+            $quantity = isset($quantities[$index]) ? intval($quantities[$index]) : 0;
+            if ($price > 0 && $quantity >= 0) {
+                $valid_variations[] = [
+                    'size' => $size,
+                    'price' => $price,
+                    'quantity' => $quantity
+                ];
             }
         }
-
-        // حذف السمات
-        update_post_meta($product_id, '_product_attributes', []);
-        
-        // حذف البيانات الوصفية المخصصة
-        delete_post_meta($product_id, '_sizes');
-        delete_post_meta($product_id, '_prices');
-        delete_post_meta($product_id, '_quantities');
-
-        // تحديث حالة المخزون
-        $product->set_stock_status('outofstock');
-        $product->save();
-        wc_delete_product_transients($product_id);
-
-        error_log("All variations, attributes, and meta removed for product ID: $product_id");
-        return;
     }
 
-    // معالجة المتغيرات إذا كانت موجودة
+    $all_variations = array_merge([[
+        'size' => 'سعر المنتج',
+        'price' => $custom_base_price,
+        'quantity' => $custom_base_quantity
+    ]], $valid_variations);
+
     $sizes_to_save = array_column($valid_variations, 'size');
     $prices_to_save = array_column($valid_variations, 'price');
     $quantities_to_save = array_column($valid_variations, 'quantity');
@@ -153,7 +238,7 @@ function save_custom_variation_data($product_id, $data) {
     $attributes = [
         'size' => [
             'name' => 'size',
-            'value' => implode('|', array_map('strtolower', $sizes_to_save)),
+            'value' => implode('|', array_map('strtolower', array_column($all_variations, 'size'))),
             'position' => 0,
             'is_visible' => 1,
             'is_variation' => 1,
@@ -163,23 +248,19 @@ function save_custom_variation_data($product_id, $data) {
     update_post_meta($product_id, '_product_attributes', $attributes);
 
     $existing_variations = $product->get_children();
-    $variation_ids = [];
-
-    foreach ($valid_variations as $variation_data) {
-        $variation_id = null;
-
-        foreach ($existing_variations as $var_id) {
-            $variation = wc_get_product($var_id);
-            if ($variation && strtolower($variation->get_attribute('size')) === strtolower($variation_data['size'])) {
-                $variation_id = $var_id;
-                break;
-            }
+    foreach ($existing_variations as $var_id) {
+        $variation = wc_get_product($var_id);
+        if ($variation) {
+            $variation->delete(true);
         }
+    }
 
-        $variation = $variation_id ? wc_get_product($variation_id) : new WC_Product_Variation();
+    $variation_ids = [];
+    foreach ($all_variations as $variation_data) {
+        $variation = new WC_Product_Variation();
         $variation->set_parent_id($product_id);
         $variation->set_attributes(['size' => strtolower($variation_data['size'])]);
-        $variation->set_regular_price($variation_data['price'] > 0 ? $variation_data['price'] : '');
+        $variation->set_regular_price($variation_data['price']);
         $variation->set_sale_price('');
         $variation->set_stock_quantity($variation_data['quantity']);
         $variation->set_manage_stock(true);
@@ -188,37 +269,20 @@ function save_custom_variation_data($product_id, $data) {
 
         $variation_id = $variation->save();
         $variation_ids[] = $variation_id;
-
-        error_log("Variation Saved - ID: $variation_id, Size: " . $variation_data['size'] . ", Price: " . $variation->get_regular_price() . ", Stock: " . $variation->get_stock_quantity());
     }
 
-    // حذف المتغيرات القديمة غير المستخدمة
-    foreach ($existing_variations as $var_id) {
-        if (!in_array($var_id, $variation_ids)) {
-            $variation = wc_get_product($var_id);
-            if ($variation) {
-                $variation->delete(true);
-                error_log("Deleted old variation ID: $var_id for product ID: $product_id");
-            }
-        }
-    }
-
-    $product->set_stock_status('instock');
+    $product->set_stock_status($custom_base_quantity > 0 ? 'instock' : 'outofstock');
     $product->save();
     wc_delete_product_transients($product_id);
 }
 
-// Adjust purchasability logic
 add_filter('woocommerce_variation_is_purchasable', function ($purchasable, $variation) {
-    $price = $variation->get_regular_price();
+    $price = floatval($variation->get_regular_price());
     $stock = $variation->get_stock_quantity();
-    $purchasable = !empty($price) && $price > 0;
-    error_log("Variation Purchasable Check - ID: " . $variation->get_id() . ", Price: $price, Stock: $stock, Purchasable: " . ($purchasable ? 'Yes' : 'No'));
-    return $purchasable;
-}, 10, 2);
+    return $price > 0 && $stock > 0;
+}, 99999, 2);
 
-// Update variation data for frontend
-add_filter('woocommerce_available_variation', 'custom_update_variation_data', 10, 3);
+add_filter('woocommerce_available_variation', 'custom_update_variation_data', 99999, 3);
 function custom_update_variation_data($data, $product, $variation) {
     $stock_quantity = $variation->get_stock_quantity();
     $data['availability_html'] = $stock_quantity > 0 ? 
@@ -226,22 +290,26 @@ function custom_update_variation_data($data, $product, $variation) {
         '<p class="stock out-of-stock">' . __('هذا المنتج غير متوفر في المخزون حالياً.', 'woocommerce') . '</p>';
     $data['is_in_stock'] = $stock_quantity > 0;
     $data['max_qty'] = $stock_quantity > 0 ? $stock_quantity : 0;
-
-    error_log("Variation Data - ID: " . $variation->get_id() . ", Size: " . $variation->get_attribute('size') . ", Stock: $stock_quantity, Price: " . $variation->get_regular_price());
     return $data;
 }
 
-// Custom price HTML for variable products
-add_filter('woocommerce_variable_sale_price_html', 'custom_variable_price_html', 10, 2);
-add_filter('woocommerce_variable_price_html', 'custom_variable_price_html', 10, 2);
+add_filter('woocommerce_variable_sale_price_html', 'custom_variable_price_html', 99999, 2);
+add_filter('woocommerce_variable_price_html', 'custom_variable_price_html', 99999, 2);
 function custom_variable_price_html($price, $product) {
+    $custom_base_price = floatval(get_post_meta($product->get_id(), '_custom_base_price', true));
+    $custom_base_quantity = intval(get_post_meta($product->get_id(), '_custom_base_quantity', true));
+
+    if ($custom_base_price > 0 && $custom_base_quantity >= 0) {
+        return wc_price($custom_base_price);
+    }
+
     $available_variations = $product->get_available_variations();
     $prices = [];
     $has_stock = false;
 
     foreach ($available_variations as $variation) {
         $variation_price = floatval($variation['display_price']);
-        if ($variation_price > 0) {
+        if ($variation_price > 0 && $variation['attributes']['attribute_size'] !== 'سعر المنتج') {
             $prices[] = $variation_price;
         }
         if ($variation['is_in_stock']) {
@@ -261,98 +329,57 @@ function custom_variable_price_html($price, $product) {
     return $price;
 }
 
-// Display total weight on product page
-add_action('woocommerce_after_add_to_cart_button', 'display_total_weight');
-function display_total_weight() {
-    global $product;
-    if ($product->is_type('variable')) {
-        ?>
-        <div id="total-weight-display" style="margin-top: 10px; font-weight: bold;">
-            <?php _e('الإجمالي: ', 'woocommerce'); ?><span id="total-weight-value">0</span>
-        </div>
-        <script>
-        jQuery(document).ready(function($) {
-            // Function to update total weight
-            function updateTotalWeight() {
-                var selectedSize = $('select[name="attribute_size"]').val() || ''; // Get selected size
-                var quantity = parseInt($('input[name="quantity"]').val()) || 1; // Get quantity, default to 1
-                var sizeValue = 0;
-                var unit = '';
-
-                // Extract numeric value and unit from size (e.g., "20 حبة" -> 20 and "حبة")
-                if (selectedSize) {
-                    var sizeMatch = selectedSize.match(/(\d+)\s*(\S+)/); // Match number and unit
-                    if (sizeMatch) {
-                        sizeValue = parseInt(sizeMatch[1]) || 0; // Numeric part
-                        unit = sizeMatch[2] || ''; // Unit part (e.g., "حبة" or "كيلو")
-                    }
+add_filter('woocommerce_add_to_cart_validation', 'custom_validate_add_to_cart', 99999, 5);
+function custom_validate_add_to_cart($passed, $product_id, $quantity, $variation_id = 0, $variations = []) {
+    if ($variation_id) {
+        $cart = WC()->cart->get_cart();
+        foreach ($cart as $cart_item_key => $cart_item) {
+            if ($cart_item['variation_id'] == $variation_id && $cart_item['product_id'] == $product_id) {
+                $new_quantity = $cart_item['quantity'] + $quantity;
+                $variation = wc_get_product($variation_id);
+                $stock = $variation->get_stock_quantity();
+                if ($stock !== null && $new_quantity > $stock) {
+                    wc_add_notice(__('الكمية المطلوبة غير متوفرة في المخزون.', 'woocommerce'), 'error');
+                    return false;
                 }
-
-                var totalWeight = sizeValue * quantity;
-                $('#total-weight-value').text(totalWeight + ' ' + unit);
-
-                // Debugging
-                console.log('Selected Size:', selectedSize);
-                console.log('Size Value:', sizeValue);
-                console.log('Unit:', unit);
-                console.log('Quantity:', quantity);
-                console.log('Total Weight:', totalWeight);
+                WC()->cart->set_quantity($cart_item_key, $new_quantity);
+                return false;
             }
-
-            // Trigger on variation change
-            $('form.variations_form').on('woocommerce_variation_has_changed', function() {
-                updateTotalWeight();
-            });
-
-            // Trigger on quantity change
-            $('input[name="quantity"]').on('input change', function() {
-                updateTotalWeight();
-            });
-
-            // Trigger on "Add to Cart" click
-            $('.single_add_to_cart_button').on('click', function(e) {
-                updateTotalWeight();
-            });
-
-            // Trigger on page load if variation is pre-selected
-            $(document).ready(function() {
-                if ($('.variation_id').val() && $('.variation_id').val() > 0) {
-                    updateTotalWeight();
-                }
-            });
-
-            // Ensure update triggers when form is fully initialized
-            $('form.variations_form').on('show_variation', function() {
-                updateTotalWeight();
-            });
-        });
-        </script>
-        <?php
-    }
-}
-
-// For 5% commission
-add_action('woocommerce_order_status_completed', 'log_commission_on_order_complete', 10, 1);
-function log_commission_on_order_complete($order_id) {
-    $order = wc_get_order($order_id);
-    $total = $order->get_total();
-    $commission = $total * 0.05;
-    $vendor_amount = $total - $commission;
-
-    update_post_meta($order_id, '_admin_commission', $commission);
-    update_post_meta($order_id, '_vendor_amount', $vendor_amount);
-}
-
-// Change currency symbol
-add_filter('woocommerce_currency_symbol', 'change_sar_currency_symbol_except_cart', 10, 2);
-function change_sar_currency_symbol_except_cart($currency_symbol, $currency) {
-    if ($currency === 'SAR') {
-        if (is_cart()) {
-            return 'ر.س';
-        } else {
-            return '';
         }
     }
-    return $currency_symbol;
+    return $passed;
 }
 
+add_action('wp_footer', 'set_default_variation_to_base_price', 99999);
+function set_default_variation_to_base_price() {
+    if (is_product()) {
+        global $product;
+        if ($product->is_type('variable')) {
+            $custom_base_price = floatval(get_post_meta($product->get_id(), '_custom_base_price', true));
+            $custom_base_quantity = intval(get_post_meta($product->get_id(), '_custom_base_quantity', true));
+            if ($custom_base_price > 0 && $custom_base_quantity >= 0) {
+                $currency_symbol = get_woocommerce_currency_symbol();
+                $formatted_price = wc_format_decimal($custom_base_price, wc_get_price_decimals());
+                ?>
+                <script>
+                    jQuery(document).ready(function($) {
+                        var $variationForm = $('.variations_form');
+                        var $priceDisplay = $('.woocommerce-Price-amount');
+
+                        $variationForm.find('select[name="attribute_size"]').val('سعر المنتج').trigger('change');
+
+                        $variationForm.on('woocommerce_variation_has_changed', function() {
+                            var selectedSize = $variationForm.find('select[name="attribute_size"]').val();
+                            if (selectedSize === 'سعر المنتج') {
+                                $priceDisplay.html('<bdi><span class="woocommerce-Price-currencySymbol"><?php echo esc_js($currency_symbol); ?></span> <?php echo esc_js($formatted_price); ?></bdi>');
+                            }
+                        });
+
+                        $variationForm.trigger('woocommerce_variation_has_changed');
+                    });
+                </script>
+                <?php
+            }
+        }
+    }
+}
