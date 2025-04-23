@@ -1,4 +1,11 @@
 <?php
+/**
+ * Plugin Name: Custom Variation Data for Dokan
+ * Description: Customizes WooCommerce product variations for Dokan vendors, ensuring variations display on preview after first save.
+ * Version: 1.6.1
+ * Author: Hossam Hamdy
+ * License: GPL-2.0+
+ */
 // For products quantity, price, and size (Hossam Custom)
 add_action('dokan_new_product_after_product_tags', 'add_custom_quantity_field', 99999);
 add_action('dokan_product_edit_after_product_tags', 'add_custom_quantity_field', 99999, 2);
