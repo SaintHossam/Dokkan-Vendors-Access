@@ -139,6 +139,10 @@ function add_custom_quantity_field($post = null, $post_id = 0) {
             });
 
             $('#dokan-product-form, #dokan-edit-product-form').on('submit', function(e) {
+                if ($('#product_type').val() !== 'variable') {
+                    return; // Skip validation for non-variable products
+                }
+
                 var basePrice = $('input[name="custom_base_price"]').val();
                 var baseQuantity = $('input[name="custom_base_quantity"]').val();
                 var hasInvalidVariation = false;
@@ -181,15 +185,8 @@ add_action('dokan_product_updated', 'save_custom_variation_data', 99999, 2);
 
 function save_custom_variation_data($product_id, $data) {
     $product = wc_get_product($product_id);
-    if (!$product) {
-        wc_add_notice(__('خطأ: المنتج غير موجود.', 'dokan'), 'error');
-        wp_redirect(wp_get_referer());
-        exit;
-    }
-
-    if (!$product->is_type('variable')) {
-        wp_set_object_terms($product_id, 'variable', 'product_type');
-        $product = wc_get_product($product_id);
+    if (!$product || !$product->is_type('variable')) {
+        return; // Exit if product is not variable
     }
 
     $custom_base_price = isset($_POST['custom_base_price']) ? floatval($_POST['custom_base_price']) : 0;
@@ -285,6 +282,11 @@ function save_custom_variation_data($product_id, $data) {
 }
 
 add_filter('woocommerce_variation_is_purchasable', function ($purchasable, $variation) {
+    $parent_product = wc_get_product($variation->get_parent_id());
+    if (!$parent_product || !$parent_product->is_type('variable')) {
+        return $purchasable; // Skip for non-variable products
+    }
+
     $price = floatval($variation->get_regular_price());
     $stock = $variation->get_stock_quantity();
     return $price > 0 && $stock > 0;
@@ -292,6 +294,10 @@ add_filter('woocommerce_variation_is_purchasable', function ($purchasable, $vari
 
 add_filter('woocommerce_available_variation', 'custom_update_variation_data', 99999, 3);
 function custom_update_variation_data($data, $product, $variation) {
+    if (!$product->is_type('variable')) {
+        return $data; // Skip for non-variable products
+    }
+
     $stock_quantity = $variation->get_stock_quantity();
     $data['availability_html'] = $stock_quantity > 0 ? 
         wc_get_stock_html($variation) : 
@@ -304,6 +310,10 @@ function custom_update_variation_data($data, $product, $variation) {
 add_filter('woocommerce_variable_sale_price_html', 'custom_variable_price_html', 99999, 2);
 add_filter('woocommerce_variable_price_html', 'custom_variable_price_html', 99999, 2);
 function custom_variable_price_html($price, $product) {
+    if (!$product->is_type('variable')) {
+        return $price; // Skip for non-variable products
+    }
+
     $custom_base_price = floatval(get_post_meta($product->get_id(), '_custom_base_price', true));
     $custom_base_quantity = intval(get_post_meta($product->get_id(), '_custom_base_quantity', true));
 
@@ -339,6 +349,11 @@ function custom_variable_price_html($price, $product) {
 
 add_filter('woocommerce_add_to_cart_validation', 'custom_validate_add_to_cart', 99999, 5);
 function custom_validate_add_to_cart($passed, $product_id, $quantity, $variation_id = 0, $variations = []) {
+    $product = wc_get_product($product_id);
+    if (!$product || !$product->is_type('variable')) {
+        return $passed; // Skip for non-variable products
+    }
+
     if ($variation_id) {
         $cart = WC()->cart->get_cart();
         foreach ($cart as $cart_item_key => $cart_item) {
@@ -362,32 +377,34 @@ add_action('wp_footer', 'set_default_variation_to_base_price', 99999);
 function set_default_variation_to_base_price() {
     if (is_product()) {
         global $product;
-        if ($product->is_type('variable')) {
-            $custom_base_price = floatval(get_post_meta($product->get_id(), '_custom_base_price', true));
-            $custom_base_quantity = intval(get_post_meta($product->get_id(), '_custom_base_quantity', true));
-            if ($custom_base_price > 0 && $custom_base_quantity >= 0) {
-                $currency_symbol = get_woocommerce_currency_symbol();
-                $formatted_price = wc_format_decimal($custom_base_price, wc_get_price_decimals());
-                ?>
-                <script>
-                    jQuery(document).ready(function($) {
-                        var $variationForm = $('.variations_form');
-                        var $priceDisplay = $('.woocommerce-Price-amount');
+        if (!$product || !$product->is_type('variable')) {
+            return; // Skip for non-variable products
+        }
 
-                        $variationForm.find('select[name="attribute_size"]').val('سعر المنتج').trigger('change');
+        $custom_base_price = floatval(get_post_meta($product->get_id(), '_custom_base_price', true));
+        $custom_base_quantity = intval(get_post_meta($product->get_id(), '_custom_base_quantity', true));
+        if ($custom_base_price > 0 && $custom_base_quantity >= 0) {
+            $currency_symbol = get_woocommerce_currency_symbol();
+            $formatted_price = wc_format_decimal($custom_base_price, wc_get_price_decimals());
+            ?>
+            <script>
+                jQuery(document).ready(function($) {
+                    var $variationForm = $('.variations_form');
+                    var $priceDisplay = $('.woocommerce-Price-amount');
 
-                        $variationForm.on('woocommerce_variation_has_changed', function() {
-                            var selectedSize = $variationForm.find('select[name="attribute_size"]').val();
-                            if (selectedSize === 'سعر المنتج') {
-                                $priceDisplay.html('<bdi><span class="woocommerce-Price-currencySymbol"><?php echo esc_js($currency_symbol); ?></span> <?php echo esc_js($formatted_price); ?></bdi>');
-                            }
-                        });
+                    $variationForm.find('select[name="attribute_size"]').val('سعر المنتج').trigger('change');
 
-                        $variationForm.trigger('woocommerce_variation_has_changed');
+                    $variationForm.on('woocommerce_variation_has_changed', function() {
+                        var selectedSize = $variationForm.find('select[name="attribute_size"]').val();
+                        if (selectedSize === 'سعر المنتج') {
+                            $priceDisplay.html('<bdi><span class="woocommerce-Price-currencySymbol"><?php echo esc_js($currency_symbol); ?></span> <?php echo esc_js($formatted_price); ?></bdi>');
+                        }
                     });
-                </script>
-                <?php
-            }
+
+                    $variationForm.trigger('woocommerce_variation_has_changed');
+                });
+            </script>
+            <?php
         }
     }
 }
